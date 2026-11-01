@@ -1,12 +1,10 @@
 name: Awesome Lint
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,11 +12,24 @@ permissions:
 jobs:
   awesome-lint:
     name: awesome-lint
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, dell-ci-ephemeral]
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
+      - name: Provision pinned public Node 20
+        run: |
+          set -euo pipefail
+          TOOL_DIR="$(mktemp -d "$RUNNER_TEMP/node.XXXXXX")"
+          ARCHIVE="$TOOL_DIR/node.tar.xz"
+          curl --proto '=https' --tlsv1.2 --fail --location --max-time 60 --retry 2 \
+            --output "$ARCHIVE" 'https://nodejs.org/dist/v20.20.2/node-v20.20.2-linux-x64.tar.xz'
+          printf '%s  %s\n' 'df770b2a6f130ed8627c9782c988fda9669fa23898329a61a871e32f965e007d' "$ARCHIVE" | sha256sum --check --status
+          tar -xJf "$ARCHIVE" -C "$TOOL_DIR" --strip-components=1
+          test "$("$TOOL_DIR/bin/node" --version)" = 'v20.20.2'
+          echo "$TOOL_DIR/bin" >> "$GITHUB_PATH"
       - name: Run awesome-lint
         run: npx --yes awesome-lint@2.3.0
